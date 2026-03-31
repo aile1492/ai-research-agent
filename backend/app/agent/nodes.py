@@ -1,6 +1,7 @@
 """Node implementations for the Research Agent graph."""
 
 import json
+import asyncio
 from langchain_anthropic import ChatAnthropic
 from langchain_core.messages import HumanMessage, SystemMessage
 from app.config import ANTHROPIC_API_KEY
@@ -18,6 +19,23 @@ def get_llm(streaming: bool = False) -> ChatAnthropic:
     )
 
 
+async def llm_invoke_with_retry(llm, messages, max_retries=3):
+    """Invoke LLM with retry logic for transient errors (429, 529)."""
+    for attempt in range(max_retries):
+        try:
+            return await llm.ainvoke(messages)
+        except Exception as e:
+            error_str = str(e)
+            if ("529" in error_str or "overloaded" in error_str.lower()
+                    or "429" in error_str or "rate" in error_str.lower()):
+                wait = 5 * (attempt + 1)  # 5s, 10s, 15s
+                await asyncio.sleep(wait)
+                if attempt == max_retries - 1:
+                    raise
+            else:
+                raise
+
+
 async def planner_node(state: dict) -> dict:
     """Decompose the query into 3-5 sub-questions."""
     queue = state.get("_queue")
@@ -30,7 +48,7 @@ async def planner_node(state: dict) -> dict:
         })
 
     llm = get_llm()
-    response = await llm.ainvoke([
+    response = await llm_invoke_with_retry(llm, [
         SystemMessage(content=PLANNER_PROMPT),
         HumanMessage(content=f"Research query: {state['query']}"),
     ])
@@ -182,7 +200,7 @@ async def analyzer_node(state: dict) -> dict:
         sub_questions=json.dumps(sub_q_list),
     )
 
-    response = await llm.ainvoke([
+    response = await llm_invoke_with_retry(llm, [
         HumanMessage(content=prompt),
     ])
 
@@ -246,15 +264,28 @@ async def writer_node(state: dict) -> dict:
     )
 
     full_report = ""
-    async for chunk in llm.astream([HumanMessage(content=prompt)]):
-        token = chunk.content
-        if token:
-            full_report += token
-            if queue:
-                await queue.put({
-                    "type": "chunk",
-                    "content": token,
-                })
+    messages = [HumanMessage(content=prompt)]
+
+    for attempt in range(3):
+        try:
+            async for chunk in llm.astream(messages):
+                token = chunk.content
+                if token:
+                    full_report += token
+                    if queue:
+                        await queue.put({
+                            "type": "chunk",
+                            "content": token,
+                        })
+            break  # success
+        except Exception as e:
+            error_str = str(e)
+            if ("529" in error_str or "overloaded" in error_str.lower()
+                    or "429" in error_str) and attempt < 2:
+                await asyncio.sleep(5 * (attempt + 1))
+                full_report = ""  # reset on retry
+            else:
+                raise
 
     # Send done event with final report + sources
     if queue:
