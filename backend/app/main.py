@@ -39,7 +39,11 @@ async def research(request: ResearchRequest):
 
         async def run():
             try:
-                await run_research_graph(request.query, session_id, queue)
+                await run_research_graph(
+                    request.query, session_id, queue,
+                    provider=request.provider or "groq",
+                    api_key=request.api_key or "",
+                )
             except Exception as e:
                 await queue.put({"type": "error", "content": str(e)})
             finally:

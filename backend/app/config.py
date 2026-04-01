@@ -7,5 +7,7 @@ env_path = Path(__file__).parent.parent / ".env"
 load_dotenv(dotenv_path=str(env_path), override=True)
 
 ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY", "")
+GROQ_API_KEY = os.getenv("GROQ_API_KEY", "")
 TAVILY_API_KEY = os.getenv("TAVILY_API_KEY", "")
+DEFAULT_PROVIDER = os.getenv("DEFAULT_PROVIDER", "groq")
 ALLOWED_ORIGINS = os.getenv("ALLOWED_ORIGINS", "http://localhost:3000").split(",")

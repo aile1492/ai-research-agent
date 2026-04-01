@@ -88,13 +88,18 @@ def build_graph() -> StateGraph:
 research_graph = build_graph().compile()
 
 
-async def run_research_graph(query: str, session_id: str, queue: asyncio.Queue) -> dict:
+async def run_research_graph(
+    query: str, session_id: str, queue: asyncio.Queue,
+    provider: str = "groq", api_key: str = "",
+) -> dict:
     """Execute the research graph with SSE event streaming.
 
     Args:
         query: User's research question
         session_id: Session identifier
         queue: asyncio.Queue for pushing SSE events to the client
+        provider: LLM provider ("groq" or "anthropic")
+        api_key: User's API key (for anthropic provider)
     """
     initial_state = {
         "query": query,
@@ -110,6 +115,8 @@ async def run_research_graph(query: str, session_id: str, queue: asyncio.Queue) 
         "error": "",
         "_queue": queue,
         "_session_id": session_id,
+        "_provider": provider,
+        "_api_key": api_key,
     }
 
     # Run the graph

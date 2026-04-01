@@ -1,4 +1,4 @@
-import type { SSEEvent } from "./types";
+import type { SSEEvent, LLMSettings } from "./types";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8001";
 
@@ -15,11 +15,21 @@ export async function startResearch(
   query: string,
   sessionId: string | null,
   onEvent: (event: SSEEvent) => void,
+  llmSettings?: LLMSettings,
 ): Promise<void> {
+  const body: Record<string, unknown> = { query, session_id: sessionId };
+
+  if (llmSettings) {
+    body.provider = llmSettings.provider;
+    if (llmSettings.apiKey) {
+      body.api_key = llmSettings.apiKey;
+    }
+  }
+
   const response = await fetch(`${API_BASE}/api/research`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ query, session_id: sessionId }),
+    body: JSON.stringify(body),
   });
 
   if (!response.ok) {

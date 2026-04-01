@@ -1,15 +1,22 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { wakeServer } from "@/lib/api";
 import { useResearch } from "@/hooks/useResearch";
+import type { LLMSettings } from "@/lib/types";
 import QueryInput from "./QueryInput";
 import StepTimeline from "./StepTimeline";
 import ReportView from "./ReportView";
+import LLMSettingsPanel from "./LLMSettingsPanel";
 
 export default function ResearchWindow() {
   const { steps, report, sources, status, error, research, reset } = useResearch();
   const [serverStatus, setServerStatus] = useState<"waking" | "ready" | "error">("waking");
+  const llmSettingsRef = useRef<LLMSettings>({ provider: "groq", apiKey: "" });
+
+  const handleSearch = (query: string) => {
+    research(query, llmSettingsRef.current);
+  };
 
   // Wake up server on mount
   useEffect(() => {
@@ -45,7 +52,7 @@ export default function ResearchWindow() {
               AI Research Agent
             </h1>
             <p className="text-xs text-gray-500 dark:text-gray-400">
-              Powered by Claude + LangGraph
+              Powered by LangGraph
             </p>
           </div>
         </div>
@@ -55,6 +62,7 @@ export default function ResearchWindow() {
               {elapsedDisplay}
             </span>
           )}
+          <LLMSettingsPanel onChange={(s) => (llmSettingsRef.current = s)} />
           {showResults && (
             <button
               onClick={reset}
@@ -97,7 +105,7 @@ export default function ResearchWindow() {
                 </div>
               </div>
               <QueryInput
-                onSubmit={research}
+                onSubmit={handleSearch}
                 disabled={isRunning || serverStatus === "waking"}
               />
             </div>
@@ -110,7 +118,7 @@ export default function ResearchWindow() {
               {/* Compact query input when results are shown */}
               <div className="mb-3 pb-3 border-b border-gray-200 dark:border-gray-700">
                 <QueryInput
-                  onSubmit={research}
+                  onSubmit={handleSearch}
                   disabled={isRunning || serverStatus === "waking"}
                   compact
                 />

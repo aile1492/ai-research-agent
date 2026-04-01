@@ -2,7 +2,7 @@
 
 import { useState, useCallback } from "react";
 import { startResearch } from "@/lib/api";
-import type { SSEEvent, AgentStep, Source, StepName } from "@/lib/types";
+import type { SSEEvent, AgentStep, Source, StepName, LLMSettings } from "@/lib/types";
 
 export type ResearchStatus = "idle" | "running" | "done" | "error";
 
@@ -102,7 +102,7 @@ export function useResearch() {
   }, []);
 
   const research = useCallback(
-    async (query: string) => {
+    async (query: string, llmSettings?: LLMSettings) => {
       // Reset state
       setSteps([]);
       setReport("");
@@ -111,7 +111,7 @@ export function useResearch() {
       setStatus("running");
 
       try {
-        await startResearch(query, sessionId, handleEvent);
+        await startResearch(query, sessionId, handleEvent, llmSettings);
       } catch {
         setError("Failed to connect to the server.");
         setStatus("error");

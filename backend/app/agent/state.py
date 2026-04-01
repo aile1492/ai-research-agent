@@ -35,3 +35,5 @@ class ResearchState(TypedDict):
     report: str                                 # Final markdown report
     error: str                                  # Error message if any
     _queue: asyncio.Queue                       # SSE event queue (not serialized)
+    _provider: str                              # "gemini" or "anthropic"
+    _api_key: str                               # User's Anthropic API key (if provided)

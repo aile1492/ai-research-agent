@@ -3,16 +3,51 @@
 import json
 import asyncio
 from langchain_anthropic import ChatAnthropic
+from langchain_groq import ChatGroq
 from langchain_core.messages import HumanMessage, SystemMessage
-from app.config import ANTHROPIC_API_KEY
+from app.config import ANTHROPIC_API_KEY, GROQ_API_KEY, DEFAULT_PROVIDER
 from app.agent.tools import web_search, read_page
 from app.agent.prompts import PLANNER_PROMPT, ANALYZER_PROMPT, WRITER_PROMPT
 
+# Provider → model defaults
+PROVIDER_MODELS = {
+    "groq": "llama-3.3-70b-versatile",
+    "anthropic": "claude-sonnet-4-20250514",
+}
 
-def get_llm(streaming: bool = False) -> ChatAnthropic:
-    return ChatAnthropic(
-        model="claude-sonnet-4-20250514",
-        anthropic_api_key=ANTHROPIC_API_KEY,
+# Provider → server-side default API key
+PROVIDER_SERVER_KEYS = {
+    "groq": GROQ_API_KEY,
+    "anthropic": ANTHROPIC_API_KEY,
+}
+
+
+def get_llm(state: dict, streaming: bool = False):
+    """Create LLM instance based on provider selection.
+
+    - groq (default): Free tier, uses server's Groq API key
+    - anthropic: Uses user-provided API key
+    """
+    provider = state.get("_provider", DEFAULT_PROVIDER)
+    user_api_key = state.get("_api_key", "")
+
+    # Determine API key: user-provided or server default
+    api_key = user_api_key if user_api_key else PROVIDER_SERVER_KEYS.get(provider, "")
+    model = PROVIDER_MODELS.get(provider, PROVIDER_MODELS["groq"])
+
+    if provider == "anthropic":
+        return ChatAnthropic(
+            model=model,
+            anthropic_api_key=api_key,
+            streaming=streaming,
+            max_tokens=4096,
+            temperature=0.3,
+        )
+
+    # Default: Groq (free tier)
+    return ChatGroq(
+        model=model,
+        groq_api_key=api_key,
         streaming=streaming,
         max_tokens=4096,
         temperature=0.3,
@@ -47,7 +82,7 @@ async def planner_node(state: dict) -> dict:
             "message": "Analyzing your question and creating a research plan...",
         })
 
-    llm = get_llm()
+    llm = get_llm(state)
     response = await llm_invoke_with_retry(llm, [
         SystemMessage(content=PLANNER_PROMPT),
         HumanMessage(content=f"Research query: {state['query']}"),
@@ -188,7 +223,7 @@ async def analyzer_node(state: dict) -> dict:
             "message": "Evaluating gathered information...",
         })
 
-    llm = get_llm()
+    llm = get_llm(state)
 
     # Summarize gathered info for the prompt
     info_summary = "\n---\n".join(state.get("gathered_info", []))[:6000]
@@ -250,7 +285,7 @@ async def writer_node(state: dict) -> dict:
             "message": "Writing research report...",
         })
 
-    llm = get_llm(streaming=True)
+    llm = get_llm(state, streaming=True)
 
     info_text = "\n---\n".join(state.get("gathered_info", []))[:8000]
     sources_text = "\n".join(

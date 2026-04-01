@@ -1,3 +1,10 @@
+export type LLMProvider = "groq" | "anthropic";
+
+export interface LLMSettings {
+  provider: LLMProvider;
+  apiKey: string; // empty = use server default
+}
+
 export type StepName = "planning" | "searching" | "reading" | "analyzing" | "writing";
 
 export interface StepStartEvent {
